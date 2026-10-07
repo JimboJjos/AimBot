@@ -15,16 +15,16 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local Config = {
     ESP = true,
-    Aimbot = false,
+    Aimbot = true,
 
     FOV = 150,
     MinFOV = 50,
-    MaxFOV = 500,
+    MaxFOV = 400,
 
-    AimPart = "Head",
+    TargetPart = "Head",
 
-    -- 1 = мгновенное наведение
-    -- 0.15 = плавное
+    -- 1 = моментальное точное наведение
+    -- 0.2 = плавное
     Smoothness = 1,
 
     WallCheck = true,
@@ -32,18 +32,30 @@ local Config = {
 }
 
 --========================================================
--- CLEANUP
+-- CLEAN OLD VERSION
 --========================================================
 
 pcall(function()
-    RunService:UnbindFromRenderStep("JimboJjos_Aimbot")
+    RunService:UnbindFromRenderStep("JimboJjosAimbot")
 end)
 
 local oldGui = PlayerGui:FindFirstChild("JimboJjosHub")
-
 if oldGui then
     oldGui:Destroy()
 end
+
+local oldESP = workspace:FindFirstChild("JimboJjosESP")
+if oldESP then
+    oldESP:Destroy()
+end
+
+--========================================================
+-- ESP CONTAINER
+--========================================================
+
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "JimboJjosESP"
+ESPFolder.Parent = workspace
 
 --========================================================
 -- GUI
@@ -67,7 +79,7 @@ FOVCircle.Position = UDim2.fromScale(0.5, 0.5)
 FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
 FOVCircle.BackgroundTransparency = 1
 FOVCircle.BorderSizePixel = 0
-FOVCircle.ZIndex = 1
+FOVCircle.ZIndex = 2
 FOVCircle.Parent = Gui
 
 local FOVCorner = Instance.new("UICorner")
@@ -75,13 +87,13 @@ FOVCorner.CornerRadius = UDim.new(1, 0)
 FOVCorner.Parent = FOVCircle
 
 local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Thickness = 2
-FOVStroke.Transparency = 0.1
 FOVStroke.Color = Color3.fromRGB(255, 255, 255)
+FOVStroke.Thickness = 2
+FOVStroke.Transparency = 0.05
 FOVStroke.Parent = FOVCircle
 
 --========================================================
--- MAIN MENU
+-- MAIN WINDOW
 --========================================================
 
 local Main = Instance.new("Frame")
@@ -98,8 +110,8 @@ MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = Main
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Thickness = 1
 MainStroke.Color = Color3.fromRGB(65, 65, 75)
+MainStroke.Thickness = 1
 MainStroke.Parent = Main
 
 --========================================================
@@ -107,8 +119,7 @@ MainStroke.Parent = Main
 --========================================================
 
 local Header = Instance.new("Frame")
-Header.Name = "Header"
-Header.Size = UDim2.new(1, 0, 0, 67)
+Header.Size = UDim2.new(1, 0, 0, 68)
 Header.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
 Header.BorderSizePixel = 0
 Header.ZIndex = 11
@@ -118,16 +129,16 @@ local HeaderCorner = Instance.new("UICorner")
 HeaderCorner.CornerRadius = UDim.new(0, 12)
 HeaderCorner.Parent = Header
 
-local HeaderBottom = Instance.new("Frame")
-HeaderBottom.Size = UDim2.new(1, 0, 0, 10)
-HeaderBottom.Position = UDim2.new(0, 0, 1, -10)
-HeaderBottom.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-HeaderBottom.BorderSizePixel = 0
-HeaderBottom.ZIndex = 11
-HeaderBottom.Parent = Header
+local HeaderFix = Instance.new("Frame")
+HeaderFix.Size = UDim2.new(1, 0, 0, 12)
+HeaderFix.Position = UDim2.new(0, 0, 1, -12)
+HeaderFix.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+HeaderFix.BorderSizePixel = 0
+HeaderFix.ZIndex = 11
+HeaderFix.Parent = Header
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -60, 0, 28)
+Title.Size = UDim2.new(1, -60, 0, 27)
 Title.Position = UDim2.fromOffset(15, 7)
 Title.BackgroundTransparency = 1
 Title.Text = "JimboJjos"
@@ -152,7 +163,7 @@ Subtitle.Parent = Header
 
 local CloseButton = Instance.new("TextButton")
 CloseButton.Size = UDim2.fromOffset(30, 30)
-CloseButton.Position = UDim2.new(1, -42, 0, 10)
+CloseButton.Position = UDim2.new(1, -42, 0, 9)
 CloseButton.BackgroundTransparency = 1
 CloseButton.Text = "×"
 CloseButton.TextColor3 = Color3.fromRGB(180, 180, 190)
@@ -166,81 +177,74 @@ CloseButton.Parent = Header
 --========================================================
 
 local Content = Instance.new("Frame")
-Content.Name = "Content"
 Content.Size = UDim2.new(1, -30, 1, -80)
-Content.Position = UDim2.fromOffset(15, 75)
+Content.Position = UDim2.fromOffset(15, 74)
 Content.BackgroundTransparency = 1
 Content.ZIndex = 11
 Content.Parent = Main
 
 --========================================================
--- TOGGLE FUNCTION
+-- TOGGLE
 --========================================================
 
-local function makeToggle(y, text, getter, setter)
+local function makeToggle(y, name, getter, setter)
 
-    local Row = Instance.new("Frame")
-    Row.Size = UDim2.new(1, 0, 0, 42)
-    Row.Position = UDim2.fromOffset(0, y)
-    Row.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
-    Row.BorderSizePixel = 0
-    Row.ZIndex = 11
-    Row.Parent = Content
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 42)
+    row.Position = UDim2.fromOffset(0, y)
+    row.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+    row.BorderSizePixel = 0
+    row.ZIndex = 11
+    row.Parent = Content
 
-    local RowCorner = Instance.new("UICorner")
-    RowCorner.CornerRadius = UDim.new(0, 8)
-    RowCorner.Parent = Row
+    local rowCorner = Instance.new("UICorner")
+    rowCorner.CornerRadius = UDim.new(0, 8)
+    rowCorner.Parent = row
 
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -85, 1, 0)
-    Label.Position = UDim2.fromOffset(13, 0)
-    Label.BackgroundTransparency = 1
-    Label.Text = text
-    Label.TextColor3 = Color3.fromRGB(235, 235, 240)
-    Label.TextSize = 14
-    Label.Font = Enum.Font.GothamMedium
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.ZIndex = 12
-    Label.Parent = Row
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -85, 1, 0)
+    label.Position = UDim2.fromOffset(13, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(235, 235, 240)
+    label.TextSize = 14
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 12
+    label.Parent = row
 
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.fromOffset(58, 28)
-    Button.Position = UDim2.new(1, -70, 0.5, -14)
-    Button.BorderSizePixel = 0
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.TextSize = 11
-    Button.Font = Enum.Font.GothamBold
-    Button.AutoButtonColor = false
-    Button.ZIndex = 12
-    Button.Parent = Row
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(58, 28)
+    button.Position = UDim2.new(1, -70, 0.5, -14)
+    button.BorderSizePixel = 0
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 11
+    button.Font = Enum.Font.GothamBold
+    button.AutoButtonColor = false
+    button.ZIndex = 12
+    button.Parent = row
 
-    local ButtonCorner = Instance.new("UICorner")
-    ButtonCorner.CornerRadius = UDim.new(0, 7)
-    ButtonCorner.Parent = Button
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 7)
+    buttonCorner.Parent = button
 
     local function refresh()
         if getter() then
-            Button.Text = "ON"
-            Button.BackgroundColor3 = Color3.fromRGB(45, 175, 80)
+            button.Text = "ON"
+            button.BackgroundColor3 = Color3.fromRGB(45, 175, 80)
         else
-            Button.Text = "OFF"
-            Button.BackgroundColor3 = Color3.fromRGB(175, 50, 50)
+            button.Text = "OFF"
+            button.BackgroundColor3 = Color3.fromRGB(175, 50, 50)
         end
     end
 
-    Button.MouseButton1Click:Connect(function()
+    button.MouseButton1Click:Connect(function()
         setter(not getter())
         refresh()
     end)
 
     refresh()
-
-    return refresh
 end
-
---========================================================
--- ESP TOGGLE
---========================================================
 
 makeToggle(
     0,
@@ -253,22 +257,14 @@ makeToggle(
     end
 )
 
---========================================================
--- AIMBOT TOGGLE
---========================================================
-
 makeToggle(
-    48,
+    49,
     "Aimbot",
     function()
         return Config.Aimbot
     end,
     function(value)
         Config.Aimbot = value
-
-        if not value then
-            CurrentTarget = nil
-        end
     end
 )
 
@@ -278,7 +274,7 @@ makeToggle(
 
 local FOVLabel = Instance.new("TextLabel")
 FOVLabel.Size = UDim2.new(1, 0, 0, 20)
-FOVLabel.Position = UDim2.fromOffset(0, 96)
+FOVLabel.Position = UDim2.fromOffset(0, 98)
 FOVLabel.BackgroundTransparency = 1
 FOVLabel.Text = "FOV Size: " .. Config.FOV
 FOVLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
@@ -294,8 +290,8 @@ FOVLabel.Parent = Content
 
 local Slider = Instance.new("Frame")
 Slider.Size = UDim2.new(1, 0, 0, 8)
-Slider.Position = UDim2.fromOffset(0, 128)
-Slider.BackgroundColor3 = Color3.fromRGB(47, 47, 55)
+Slider.Position = UDim2.fromOffset(0, 130)
+Slider.BackgroundColor3 = Color3.fromRGB(48, 48, 56)
 Slider.BorderSizePixel = 0
 Slider.ZIndex = 12
 Slider.Parent = Content
@@ -326,7 +322,7 @@ local KnobCorner = Instance.new("UICorner")
 KnobCorner.CornerRadius = UDim.new(1, 0)
 KnobCorner.Parent = Knob
 
-local SliderDragging = false
+local sliderDragging = false
 
 local function updateFOV(value)
 
@@ -345,13 +341,14 @@ local function updateFOV(value)
 
     FOVLabel.Text = "FOV Size: " .. Config.FOV
 
-    FOVCircle.Size = UDim2.fromOffset(
-        Config.FOV * 2,
-        Config.FOV * 2
-    )
+    FOVCircle.Size =
+        UDim2.fromOffset(
+            Config.FOV * 2,
+            Config.FOV * 2
+        )
 end
 
-local function updateSlider(x)
+local function setSliderFromX(x)
 
     local startX = Slider.AbsolutePosition.X
     local width = Slider.AbsoluteSize.X
@@ -379,21 +376,21 @@ Slider.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
 
-        SliderDragging = true
-        updateSlider(input.Position.X)
+        sliderDragging = true
+        setSliderFromX(input.Position.X)
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
 
-    if not SliderDragging then
+    if not sliderDragging then
         return
     end
 
     if input.UserInputType == Enum.UserInputType.MouseMovement
         or input.UserInputType == Enum.UserInputType.Touch then
 
-        updateSlider(input.Position.X)
+        setSliderFromX(input.Position.X)
     end
 end)
 
@@ -402,12 +399,12 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
 
-        SliderDragging = false
+        sliderDragging = false
     end
 end)
 
 --========================================================
--- TARGET STATUS
+-- TARGET LABEL
 --========================================================
 
 local TargetLabel = Instance.new("TextLabel")
@@ -426,11 +423,11 @@ TargetLabel.Parent = Content
 -- ESP
 --========================================================
 
-local ESP = {}
+local ESPObjects = {}
 
-local function destroyESP(player)
+local function removeESP(player)
 
-    local data = ESP[player]
+    local data = ESPObjects[player]
 
     if not data then
         return
@@ -444,21 +441,22 @@ local function destroyESP(player)
         data.Billboard:Destroy()
     end
 
-    if data.CharacterConnection then
-        data.CharacterConnection:Disconnect()
+    if data.Connection then
+        data.Connection:Disconnect()
     end
 
-    ESP[player] = nil
+    ESPObjects[player] = nil
 end
 
 local function createCharacterESP(player, character)
 
-    local data = ESP[player]
+    local data = ESPObjects[player]
 
     if not data then
         return
     end
 
+    -- Удаляем старый ESP
     if data.Highlight then
         data.Highlight:Destroy()
         data.Highlight = nil
@@ -477,10 +475,7 @@ local function createCharacterESP(player, character)
 
     if not humanoid then
         humanoid =
-            character:WaitForChild(
-                "Humanoid",
-                5
-            )
+            character:WaitForChild("Humanoid", 5)
     end
 
     if not root then
@@ -496,64 +491,67 @@ local function createCharacterESP(player, character)
     end
 
     --====================================================
-    -- ПОЛНАЯ ПОДСВЕТКА МОДЕЛИ
+    -- FULL BODY HIGHLIGHT
     --====================================================
 
-    local Highlight = Instance.new("Highlight")
+    local highlight = Instance.new("Highlight")
 
-    Highlight.Name = "JimboJjosFullESP"
+    highlight.Name = "FullBodyESP"
 
-    -- Adornee = ВСЯ модель персонажа
-    Highlight.Adornee = character
+    -- ВСЯ модель
+    highlight.Adornee = character
 
-    Highlight.FillColor =
+    highlight.FillColor =
         Color3.fromRGB(255, 60, 60)
 
-    Highlight.FillTransparency = 0.35
+    highlight.FillTransparency = 0.30
 
-    Highlight.OutlineColor =
+    highlight.OutlineColor =
         Color3.fromRGB(255, 255, 255)
 
-    Highlight.OutlineTransparency = 0
+    highlight.OutlineTransparency = 0
 
-    Highlight.DepthMode =
+    highlight.DepthMode =
         Config.ESPThroughWalls
         and Enum.HighlightDepthMode.AlwaysOnTop
         or Enum.HighlightDepthMode.Occluded
 
-    Highlight.Enabled = Config.ESP
+    highlight.Enabled = Config.ESP
 
-    Highlight.Parent = Gui
+    -- ВАЖНО: Highlight находится в Workspace
+    highlight.Parent = ESPFolder
 
     --====================================================
-    -- NAME / DISTANCE
+    -- NAME + DISTANCE
     --====================================================
 
-    local Billboard = Instance.new("BillboardGui")
+    local billboard = Instance.new("BillboardGui")
 
-    Billboard.Name = "JimboJjosPlayerInfo"
-    Billboard.Adornee = root
-    Billboard.Size = UDim2.fromOffset(220, 42)
-    Billboard.StudsOffset = Vector3.new(0, 3.5, 0)
-    Billboard.AlwaysOnTop = true
-    Billboard.Enabled = Config.ESP
-    Billboard.Parent = Gui
+    billboard.Name = "PlayerInfo"
+    billboard.Adornee = root
+    billboard.Size = UDim2.fromOffset(220, 40)
+    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Enabled = Config.ESP
+    billboard.Parent = PlayerGui
 
-    local Label = Instance.new("TextLabel")
+    local label = Instance.new("TextLabel")
 
-    Label.Size = UDim2.fromScale(1, 1)
-    Label.BackgroundTransparency = 1
-    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Label.TextStrokeTransparency = 0
-    Label.TextSize = 12
-    Label.Font = Enum.Font.GothamBold
-    Label.Text = player.Name
-    Label.Parent = Billboard
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+    label.TextColor3 =
+        Color3.fromRGB(255, 255, 255)
+
+    label.TextStrokeTransparency = 0
+    label.TextSize = 12
+    label.Font = Enum.Font.GothamBold
+    label.Text = player.Name
+    label.Parent = billboard
 
     data.Character = character
-    data.Highlight = Highlight
-    data.Billboard = Billboard
-    data.Label = Label
+    data.Highlight = highlight
+    data.Billboard = billboard
+    data.Label = label
 end
 
 local function setupESP(player)
@@ -562,35 +560,36 @@ local function setupESP(player)
         return
     end
 
-    destroyESP(player)
+    removeESP(player)
 
     local data = {
         Character = nil,
         Highlight = nil,
         Billboard = nil,
         Label = nil,
-        CharacterConnection = nil
+        Connection = nil
     }
 
-    ESP[player] = data
+    ESPObjects[player] = data
 
-    -- Респавн
-    data.CharacterConnection =
-        player.CharacterAdded:Connect(function(character)
+    data.Connection =
+        player.CharacterAdded:Connect(
+            function(character)
 
-            task.wait(0.15)
+                task.wait(0.1)
 
-            if ESP[player] then
-                createCharacterESP(
-                    player,
-                    character
-                )
+                if ESPObjects[player] then
+                    createCharacterESP(
+                        player,
+                        character
+                    )
+                end
             end
-        end)
+        )
 
-    -- Уже существует
     if player.Character then
         task.spawn(function()
+
             createCharacterESP(
                 player,
                 player.Character
@@ -598,10 +597,6 @@ local function setupESP(player)
         end)
     end
 end
-
---========================================================
--- PLAYERS
---========================================================
 
 for _, player in ipairs(Players:GetPlayers()) do
     setupESP(player)
@@ -613,7 +608,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 
-    destroyESP(player)
+    removeESP(player)
 
     if CurrentTarget == player then
         CurrentTarget = nil
@@ -626,7 +621,7 @@ end)
 
 RunService.RenderStepped:Connect(function()
 
-    for player, data in pairs(ESP) do
+    for player, data in pairs(ESPObjects) do
 
         local character = player.Character
 
@@ -644,10 +639,14 @@ RunService.RenderStepped:Connect(function()
         end
 
         local humanoid =
-            character:FindFirstChildOfClass("Humanoid")
+            character:FindFirstChildOfClass(
+                "Humanoid"
+            )
 
         local root =
-            character:FindFirstChild("HumanoidRootPart")
+            character:FindFirstChild(
+                "HumanoidRootPart"
+            )
 
         if not humanoid
             or humanoid.Health <= 0
@@ -664,11 +663,14 @@ RunService.RenderStepped:Connect(function()
             continue
         end
 
+        -- Всегда привязываем Highlight ко всей модели
         if data.Highlight then
 
-            -- Каждый кадр снова привязываем ко ВСЕЙ модели
-            data.Highlight.Adornee = character
-            data.Highlight.Enabled = Config.ESP
+            data.Highlight.Adornee =
+                character
+
+            data.Highlight.Enabled =
+                Config.ESP
 
             data.Highlight.DepthMode =
                 Config.ESPThroughWalls
@@ -679,7 +681,8 @@ RunService.RenderStepped:Connect(function()
         if data.Billboard then
 
             data.Billboard.Adornee = root
-            data.Billboard.Enabled = Config.ESP
+            data.Billboard.Enabled =
+                Config.ESP
 
             if data.Label then
 
@@ -695,16 +698,22 @@ RunService.RenderStepped:Connect(function()
                 if myRoot then
 
                     local distance =
-                        (myRoot.Position - root.Position).Magnitude
+                        (
+                            myRoot.Position
+                            - root.Position
+                        ).Magnitude
 
                     data.Label.Text =
                         player.Name
-                        .. "  |  "
+                        .. " | "
                         .. math.floor(distance)
                         .. "m"
 
                 else
-                    data.Label.Text = player.Name
+
+                    data.Label.Text =
+                        player.Name
+
                 end
             end
         end
@@ -717,11 +726,7 @@ end)
 
 local CurrentTarget = nil
 
---========================================================
--- VALID TARGET
---========================================================
-
-local function targetIsValid(player)
+local function validTarget(player)
 
     if not player then
         return false
@@ -731,14 +736,17 @@ local function targetIsValid(player)
         return false
     end
 
-    local character = player.Character
+    local character =
+        player.Character
 
     if not character then
         return false
     end
 
     local humanoid =
-        character:FindFirstChildOfClass("Humanoid")
+        character:FindFirstChildOfClass(
+            "Humanoid"
+        )
 
     if not humanoid then
         return false
@@ -748,37 +756,38 @@ local function targetIsValid(player)
         return false
     end
 
-    local part =
-        character:FindFirstChild(Config.AimPart)
+    local target =
+        character:FindFirstChild(
+            Config.TargetPart
+        )
 
-    if not part then
+    if not target then
         return false
     end
 
-    if not part:IsA("BasePart") then
+    if not target:IsA("BasePart") then
         return false
     end
 
     return true
 end
 
---========================================================
--- GET AIM PART
---========================================================
+local function getTargetPart(player)
 
-local function getAimPart(player)
-
-    if not targetIsValid(player) then
+    if not validTarget(player) then
         return nil
     end
 
-    local character = player.Character
+    local character =
+        player.Character
 
-    local part =
-        character:FindFirstChild(Config.AimPart)
+    local target =
+        character:FindFirstChild(
+            Config.TargetPart
+        )
 
-    if part and part:IsA("BasePart") then
-        return part
+    if target then
+        return target
     end
 
     return character:FindFirstChild(
@@ -790,20 +799,24 @@ end
 -- WALL CHECK
 --========================================================
 
-local function targetVisible(player)
+local function visible(player)
 
-    if not targetIsValid(player) then
+    if not validTarget(player) then
         return false
     end
 
-    local camera = workspace.CurrentCamera
+    local camera =
+        workspace.CurrentCamera
 
     if not camera then
         return false
     end
 
-    local character = player.Character
-    local target = getAimPart(player)
+    local character =
+        player.Character
+
+    local target =
+        getTargetPart(player)
 
     if not character or not target then
         return false
@@ -819,7 +832,8 @@ local function targetVisible(player)
     local direction =
         target.Position - origin
 
-    local params = RaycastParams.new()
+    local params =
+        RaycastParams.new()
 
     params.FilterType =
         Enum.RaycastFilterType.Exclude
@@ -841,13 +855,9 @@ local function targetVisible(player)
         return true
     end
 
-    -- Первое препятствие — сам персонаж
-    if result.Instance:IsDescendantOf(character) then
-        return true
-    end
-
-    -- Перед целью есть стена/объект
-    return false
+    return result.Instance:IsDescendantOf(
+        character
+    )
 end
 
 --========================================================
@@ -855,10 +865,6 @@ end
 --========================================================
 
 local function findTarget()
-
-    if not Config.Aimbot then
-        return nil
-    end
 
     local camera =
         workspace.CurrentCamera
@@ -884,16 +890,16 @@ local function findTarget()
     ) do
 
         if player ~= LocalPlayer
-            and targetIsValid(player) then
+            and validTarget(player) then
 
-            local part =
-                getAimPart(player)
+            local target =
+                getTargetPart(player)
 
-            if part then
+            if target then
 
                 local screenPosition, onScreen =
                     camera:WorldToViewportPoint(
-                        part.Position
+                        target.Position
                     )
 
                 if onScreen
@@ -906,14 +912,18 @@ local function findTarget()
                         )
 
                     local distance =
-                        (point - center).Magnitude
+                        (
+                            point - center
+                        ).Magnitude
 
-                    if distance <= bestDistance then
+                    if distance <= bestDistance
+                        and visible(player) then
 
-                        if targetVisible(player) then
-                            bestDistance = distance
-                            bestPlayer = player
-                        end
+                        bestDistance =
+                            distance
+
+                        bestPlayer =
+                            player
                     end
                 end
             end
@@ -929,52 +939,44 @@ end
 
 local function aimAt(player)
 
-    if not targetIsValid(player) then
+    if not validTarget(player) then
         return false
     end
 
-    -- Стена появилась
-    if not targetVisible(player) then
+    -- За стеной -> снять lock
+    if not visible(player) then
         return false
     end
 
     local camera =
         workspace.CurrentCamera
 
-    if not camera then
-        return false
-    end
-
     local target =
-        getAimPart(player)
+        getTargetPart(player)
 
-    if not target then
+    if not camera or not target then
         return false
     end
-
-    -- АКТУАЛЬНАЯ позиция цели
-    local targetPosition =
-        target.Position
 
     local cameraPosition =
         camera.CFrame.Position
 
-    local desiredCFrame =
+    local desired =
         CFrame.lookAt(
             cameraPosition,
-            targetPosition
+            target.Position,
+            Vector3.new(0, 1, 0)
         )
 
     if Config.Smoothness >= 1 then
 
-        -- Полностью точное наведение
-        camera.CFrame = desiredCFrame
+        camera.CFrame = desired
 
     else
 
         camera.CFrame =
             camera.CFrame:Lerp(
-                desiredCFrame,
+                desired,
                 Config.Smoothness
             )
     end
@@ -988,41 +990,38 @@ end
 
 pcall(function()
     RunService:UnbindFromRenderStep(
-        "JimboJjos_Aimbot"
+        "JimboJjosAimbot"
     )
 end)
 
 RunService:BindToRenderStep(
-    "JimboJjos_Aimbot",
+    "JimboJjosAimbot",
+
+    -- Выполняется после стандартной камеры
     10000,
+
     function()
 
         if not Config.Aimbot then
 
             CurrentTarget = nil
-            TargetLabel.Text = "Target: None"
+            TargetLabel.Text =
+                "Target: None"
 
             return
         end
 
-        ----------------------------------------------------
-        -- УЖЕ ЗАХВАЧЕНАЯ ЦЕЛЬ
-        ----------------------------------------------------
+        --================================================
+        -- ДЕРЖИМ ТЕКУЩУЮ ЦЕЛЬ
+        --================================================
 
         if CurrentTarget then
 
-            local valid =
-                targetIsValid(CurrentTarget)
+            if validTarget(CurrentTarget)
+                and visible(CurrentTarget) then
 
-            local visible =
-                valid
-                and targetVisible(CurrentTarget)
-
-            if valid and visible then
-
-                -- ВАЖНО:
-                -- FOV здесь НЕ проверяется.
-                -- Цель удерживается даже если вышла из круга.
+                -- FOV здесь НЕ проверяем
+                -- Цель удерживается вне круга
                 aimAt(CurrentTarget)
 
                 TargetLabel.Text =
@@ -1032,36 +1031,37 @@ RunService:BindToRenderStep(
                 return
             end
 
-            -- Цель умерла / исчезла / за стеной
+            -- Смерть / стена / исчезновение
             CurrentTarget = nil
 
             TargetLabel.Text =
                 "Target: None"
         end
 
-        ----------------------------------------------------
+        --================================================
         -- НОВЫЙ ЗАХВАТ
-        ----------------------------------------------------
+        --================================================
 
-        local target =
+        local newTarget =
             findTarget()
 
-        if target then
+        if newTarget then
 
-            CurrentTarget = target
+            CurrentTarget =
+                newTarget
 
             TargetLabel.Text =
                 "Target: "
-                .. target.Name
+                .. newTarget.Name
 
-            -- Сразу наводимся
+            -- Первый кадр сразу точно на цель
             aimAt(CurrentTarget)
         end
     end
 )
 
 --========================================================
--- DRAG MENU
+-- MENU DRAG
 --========================================================
 
 local dragging = false
@@ -1136,11 +1136,6 @@ OpenButton.Parent = Gui
 local OpenCorner = Instance.new("UICorner")
 OpenCorner.CornerRadius = UDim.new(0, 9)
 OpenCorner.Parent = OpenButton
-
-local OpenStroke = Instance.new("UIStroke")
-OpenStroke.Thickness = 1
-OpenStroke.Color = Color3.fromRGB(65, 65, 75)
-OpenStroke.Parent = OpenButton
 
 CloseButton.MouseButton1Click:Connect(function()
 
