@@ -1,39 +1,70 @@
 --========================================================
--- JimboJjos | FIXED ESP + AIMBOT
+-- JimboJjos | ESP + AIMBOT
 --========================================================
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local LocalPlayer = Players.LocalPlayer
-
-local ESPEnabled = true
-local AimbotEnabled = true
-
-local FOVRadius = 150
-local WallCheck = true
-local AimSmoothness = 1
-
 local CurrentTarget = nil
-local ESPData = {}
+
+local AimbotConfig = {
+	Enabled = true,
+
+	-- Радиус первичного захвата
+	FOV = 150,
+
+	-- Точка наведения
+	TargetPart = "Head",
+
+	-- 1 = моментально
+	-- 0.15 = плавно
+	Smoothness = 1,
+
+	-- Проверять стены
+	WallCheck = true
+}
+
+--========================================================
+-- PLAYER VALIDATION
+--========================================================
+
+local function isValidTarget(player)
+	if not player or player == LocalPlayer then
+		return false
+	end
+
+	local character = player.Character
+	if not character then
+		return false
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return false
+	end
+
+	local target = character:FindFirstChild(AimbotConfig.TargetPart)
+
+	if not target or not target:IsA("BasePart") then
+		return false
+	end
+
+	return true
+end
 
 --========================================================
 -- TARGET PART
 --========================================================
 
 local function getTargetPart(player)
-	local character = player and player.Character
-	if not character then
+	if not isValidTarget(player) then
 		return nil
 	end
 
-	-- Сначала пытаемся взять голову.
+	local character = player.Character
+
 	local head = character:FindFirstChild("Head")
 	if head and head:IsA("BasePart") then
 		return head
 	end
 
-	-- Запасные варианты для нестандартных персонажей.
 	local upperTorso = character:FindFirstChild("UpperTorso")
 	if upperTorso and upperTorso:IsA("BasePart") then
 		return upperTorso
@@ -53,402 +84,51 @@ local function getTargetPart(player)
 end
 
 --========================================================
--- VALID PLAYER
---========================================================
-
-local function validPlayer(player)
-	if not player or player == LocalPlayer then
-		return false
-	end
-
-	local character = player.Character
-	if not character then
-		return false
-	end
-
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then
-		return false
-	end
-
-	if humanoid.Health <= 0 then
-		return false
-	end
-
-	return getTargetPart(player) ~= nil
-end
-
---========================================================
--- ESP REMOVE
---========================================================
-
-local function removeESP(player)
-	local data = ESPData[player]
-
-	if not data then
-		return
-	end
-
-	if data.Highlight then
-		data.Highlight:Destroy()
-	end
-
-	if data.Info then
-		data.Info:Destroy()
-	end
-
-	if data.Connection then
-		data.Connection:Disconnect()
-	end
-
-	ESPData[player] = nil
-end
-
---========================================================
--- ESP CREATE
---========================================================
-
-local function createESP(player, character)
-	if player == LocalPlayer then
-		return
-	end
-
-	if not character then
-		return
-	end
-
-	local data = ESPData[player]
-
-	if not data then
-		return
-	end
-
-	-- Удаляем предыдущую модель ESP.
-	if data.Highlight then
-		data.Highlight:Destroy()
-		data.Highlight = nil
-	end
-
-	if data.Info then
-		data.Info:Destroy()
-		data.Info = nil
-	end
-
-	-- Не ждём Head.
-	-- Нам достаточно самой Character-модели.
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
-
-	if not humanoid then
-		humanoid =
-			character:WaitForChild("Humanoid", 5)
-	end
-
-	if not humanoid then
-		return
-	end
-
-	--====================================================
-	-- FULL BODY ESP
-	--====================================================
-
-	local highlight = Instance.new("Highlight")
-
-	highlight.Name = "JimboJjosESP"
-	highlight.Adornee = character
-
-	highlight.FillColor =
-		Color3.fromRGB(255, 55, 55)
-
-	highlight.FillTransparency = 0.25
-
-	highlight.OutlineColor =
-		Color3.fromRGB(255, 255, 255)
-
-	highlight.OutlineTransparency = 0
-
-	highlight.DepthMode =
-		Enum.HighlightDepthMode.AlwaysOnTop
-
-	highlight.Enabled = ESPEnabled
-
-	-- Highlight отдельно от Character,
-	-- чтобы пересоздание персонажа не ломало систему.
-	highlight.Parent = workspace.CurrentCamera
-
-	--====================================================
-	-- INFO
-	--====================================================
-
-	local root =
-		character:FindFirstChild("HumanoidRootPart")
-
-	if root then
-		local info = Instance.new("BillboardGui")
-
-		info.Name = "JimboJjosESPInfo"
-		info.Adornee = root
-		info.Size = UDim2.fromOffset(220, 40)
-		info.StudsOffset = Vector3.new(0, 3.5, 0)
-		info.AlwaysOnTop = true
-		info.Enabled = ESPEnabled
-		info.Parent = PlayerGui
-
-		local label = Instance.new("TextLabel")
-
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.TextColor3 =
-			Color3.fromRGB(255, 255, 255)
-
-		label.TextStrokeTransparency = 0
-		label.TextSize = 12
-		label.Font = Enum.Font.GothamBold
-		label.Text = player.Name
-
-		label.Parent = info
-
-		data.Info = info
-		data.Label = label
-	end
-
-	data.Character = character
-	data.Highlight = highlight
-end
-
---========================================================
--- ESP SETUP
---========================================================
-
-local function setupESP(player)
-	if player == LocalPlayer then
-		return
-	end
-
-	removeESP(player)
-
-	ESPData[player] = {
-		Character = nil,
-		Highlight = nil,
-		Info = nil,
-		Label = nil,
-		Connection = nil
-	}
-
-	ESPData[player].Connection =
-		player.CharacterAdded:Connect(
-			function(character)
-
-				-- Небольшая задержка, чтобы модель успела появиться.
-				task.wait(0.05)
-
-				if ESPData[player] then
-					createESP(
-						player,
-						character
-					)
-				end
-			end
-		)
-
-	-- Уже существующий персонаж.
-	if player.Character then
-		task.spawn(function()
-			createESP(
-				player,
-				player.Character
-			)
-		end)
-	end
-end
-
---========================================================
--- ALL PLAYERS
---========================================================
-
-for _, player in ipairs(Players:GetPlayers()) do
-	setupESP(player)
-end
-
-Players.PlayerAdded:Connect(function(player)
-	setupESP(player)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-
-	removeESP(player)
-
-	if CurrentTarget == player then
-		CurrentTarget = nil
-	end
-end)
-
---========================================================
--- ESP UPDATE
---========================================================
-
-RunService.RenderStepped:Connect(function()
-
-	for player, data in pairs(ESPData) do
-
-		local character = player.Character
-
-		if not character then
-
-			if data.Highlight then
-				data.Highlight.Enabled = false
-			end
-
-			if data.Info then
-				data.Info.Enabled = false
-			end
-
-			continue
-		end
-
-		local humanoid =
-			character:FindFirstChildOfClass("Humanoid")
-
-		if not humanoid
-			or humanoid.Health <= 0 then
-
-			if data.Highlight then
-				data.Highlight.Enabled = false
-			end
-
-			if data.Info then
-				data.Info.Enabled = false
-			end
-
-			continue
-		end
-
-		-- Главное:
-		-- ESP НЕ зависит от Head.
-		if data.Highlight then
-
-			data.Highlight.Adornee =
-				character
-
-			data.Highlight.Enabled =
-				ESPEnabled
-
-			data.Highlight.DepthMode =
-				Enum.HighlightDepthMode.AlwaysOnTop
-		end
-
-		local root =
-			character:FindFirstChild(
-				"HumanoidRootPart"
-			)
-
-		if data.Info and root then
-
-			data.Info.Adornee =
-				root
-
-			data.Info.Enabled =
-				ESPEnabled
-
-			if data.Label then
-
-				local myCharacter =
-					LocalPlayer.Character
-
-				local myRoot =
-					myCharacter
-					and myCharacter:FindFirstChild(
-						"HumanoidRootPart"
-					)
-
-				if myRoot then
-
-					local distance =
-						(
-							myRoot.Position
-							- root.Position
-						).Magnitude
-
-					data.Label.Text =
-						player.Name
-						.. " | "
-						.. math.floor(distance)
-						.. "m"
-				else
-					data.Label.Text =
-						player.Name
-				end
-			end
-		end
-	end
-end)
-
---========================================================
 -- WALL CHECK
 --========================================================
 
-local function canSeePlayer(player)
-
-	if not validPlayer(player) then
+local function hasLineOfSight(player)
+	if not isValidTarget(player) then
 		return false
 	end
 
-	local camera =
-		workspace.CurrentCamera
+	if not AimbotConfig.WallCheck then
+		return true
+	end
 
+	local camera = workspace.CurrentCamera
 	if not camera then
 		return false
 	end
 
-	local character =
-		player.Character
-
-	local target =
-		getTargetPart(player)
+	local character = player.Character
+	local target = getTargetPart(player)
 
 	if not character or not target then
 		return false
 	end
 
-	if not WallCheck then
-		return true
-	end
+	local origin = camera.CFrame.Position
+	local direction = target.Position - origin
 
-	local origin =
-		camera.CFrame.Position
-
-	local direction =
-		target.Position - origin
-
-	local params =
-		RaycastParams.new()
-
-	params.FilterType =
-		Enum.RaycastFilterType.Exclude
-
-	-- Исключаем только себя.
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = {
 		LocalPlayer.Character
 	}
-
 	params.IgnoreWater = true
 
-	local result =
-		workspace:Raycast(
-			origin,
-			direction,
-			params
-		)
+	local result = workspace:Raycast(
+		origin,
+		direction,
+		params
+	)
 
 	if not result then
 		return true
 	end
 
-	-- Если первый объект принадлежит персонажу,
-	-- значит линия обзора чистая.
-	return result.Instance:IsDescendantOf(
-		character
-	)
+	return result.Instance:IsDescendantOf(character)
 end
 
 --========================================================
@@ -456,72 +136,59 @@ end
 --========================================================
 
 local function findTarget()
-
-	local camera =
-		workspace.CurrentCamera
-
+	local camera = workspace.CurrentCamera
 	if not camera then
 		return nil
 	end
 
-	local viewport =
-		camera.ViewportSize
+	local viewport = camera.ViewportSize
 
-	local center =
-		Vector2.new(
-			viewport.X / 2,
-			viewport.Y / 2
-		)
+	local center = Vector2.new(
+		viewport.X * 0.5,
+		viewport.Y * 0.5
+	)
 
-	local selected = nil
-	local closest = FOVRadius
+	local bestPlayer = nil
+	local bestDistance = AimbotConfig.FOV
 
-	for _, player in ipairs(
-		Players:GetPlayers()
-	) do
+	for _, player in ipairs(Players:GetPlayers()) do
 
-		-- ВАЖНО:
-		-- здесь вообще не используется ESPData.
-		-- Поэтому Aimbot может выбрать игрока,
-		-- даже если ESP отключён или ещё не создан.
-		if validPlayer(player) then
+		if player ~= LocalPlayer and isValidTarget(player) then
 
-			local target =
-				getTargetPart(player)
+			local target = getTargetPart(player)
 
-			local screenPosition, onScreen =
-				camera:WorldToViewportPoint(
-					target.Position
-				)
+			if target then
 
-			if onScreen
-				and screenPosition.Z > 0 then
+				local screenPosition, visible =
+					camera:WorldToViewportPoint(
+						target.Position
+					)
 
-				local point =
-					Vector2.new(
+				if visible and screenPosition.Z > 0 then
+
+					local screenPoint = Vector2.new(
 						screenPosition.X,
 						screenPosition.Y
 					)
 
-				local distance =
-					(point - center).Magnitude
+					local distance =
+						(screenPoint - center).Magnitude
 
-				if distance <= closest then
+					if distance < bestDistance then
 
-					if canSeePlayer(player) then
+						if hasLineOfSight(player) then
 
-						closest =
-							distance
+							bestDistance = distance
+							bestPlayer = player
 
-						selected =
-							player
+						end
 					end
 				end
 			end
 		end
 	end
 
-	return selected
+	return bestPlayer
 end
 
 --========================================================
@@ -529,97 +196,138 @@ end
 --========================================================
 
 local function aimAt(player)
-
-	if not validPlayer(player) then
+	if not isValidTarget(player) then
 		return false
 	end
 
-	-- За стеной -> снять захват.
-	if not canSeePlayer(player) then
+	if not hasLineOfSight(player) then
 		return false
 	end
 
-	local camera =
-		workspace.CurrentCamera
-
-	local target =
-		getTargetPart(player)
-
-	if not camera or not target then
+	local camera = workspace.CurrentCamera
+	if not camera then
 		return false
 	end
 
-	local desired =
-		CFrame.lookAt(
-			camera.CFrame.Position,
-			target.Position
-		)
+	local target = getTargetPart(player)
+	if not target then
+		return false
+	end
 
-	if AimSmoothness >= 1 then
+	local cameraPosition = camera.CFrame.Position
 
-		camera.CFrame =
-			desired
+	-- Сохраняем текущий UpVector камеры,
+	-- поэтому оружие не получает неожиданный roll.
+	local desiredCFrame = CFrame.lookAt(
+		cameraPosition,
+		target.Position,
+		camera.CFrame.UpVector
+	)
+
+	if AimbotConfig.Smoothness >= 1 then
+
+		camera.CFrame = desiredCFrame
 
 	else
 
-		camera.CFrame =
-			camera.CFrame:Lerp(
-				desired,
-				AimSmoothness
-			)
+		camera.CFrame = camera.CFrame:Lerp(
+			desiredCFrame,
+			AimbotConfig.Smoothness
+		)
 	end
 
 	return true
 end
 
 --========================================================
--- STABLE AIMBOT
+-- CLEAN PREVIOUS CONNECTION
+--========================================================
+
+pcall(function()
+	RunService:UnbindFromRenderStep(
+		"JimboJjosStableAimbot"
+	)
+end)
+
+--========================================================
+-- MAIN LOOP
+--========================================================
+--
+-- ВАЖНО:
+-- Не 10000.
+-- Камера игры обновляется первой,
+-- затем наш aim,
+-- затем остальные визуальные элементы.
+--
+-- Это предотвращает рассинхрон оружия и камеры.
 --========================================================
 
 RunService:BindToRenderStep(
-	"JimboJjosStableAim",
-
-	Enum.RenderPriority.Last.Value,
-
+	"JimboJjosStableAimbot",
+	Enum.RenderPriority.Camera.Value + 1,
 	function()
 
-		if not AimbotEnabled then
-
+		if not AimbotConfig.Enabled then
 			CurrentTarget = nil
+
+			if TargetLabel then
+				TargetLabel.Text = "Target: None"
+			end
 
 			return
 		end
 
 		--================================================
-		-- KEEP TARGET
+		-- УДЕРЖАНИЕ ТЕКУЩЕЙ ЦЕЛИ
 		--================================================
 
 		if CurrentTarget then
 
-			if validPlayer(CurrentTarget)
-				and canSeePlayer(CurrentTarget) then
+			local valid =
+				isValidTarget(CurrentTarget)
 
-				-- После захвата FOV НЕ проверяется.
+			local visible =
+				valid
+				and hasLineOfSight(CurrentTarget)
+
+			if valid and visible then
+
+				-- FOV здесь НЕ проверяется.
+				-- Цель удерживается вне круга.
 				aimAt(CurrentTarget)
+
+				if TargetLabel then
+					TargetLabel.Text =
+						"Target: "
+						.. CurrentTarget.Name
+				end
 
 				return
 			end
 
-			-- Смерть / стена / удаление.
+			-- Стена / смерть / исчезновение
 			CurrentTarget = nil
+
+			if TargetLabel then
+				TargetLabel.Text = "Target: None"
+			end
 		end
 
 		--================================================
-		-- NEW TARGET
+		-- НОВЫЙ ЗАХВАТ
 		--================================================
 
-		local target =
-			findTarget()
+		local target = findTarget()
 
 		if target then
 
-			CurrentTarget =
-				target
+			CurrentTarget = target
+
+			if TargetLabel then
+				TargetLabel.Text =
+					"Target: "
+					.. target.Name
+			end
 
 			aimAt(CurrentTarget)
 		end
